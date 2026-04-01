@@ -6,6 +6,27 @@ from datetime import datetime
 
 APP_DIR = Path.home() / ".gliflow"
 
+_SCHEMA: dict[str, tuple] = {
+    "general.language":          (str,   lambda v: v in ("es", "en", "auto")),
+    "general.auto_start":        (bool,  None),
+    "general.history_enabled":   (bool,  None),
+    "provider.active":           (str,   lambda v: v in ("groq", "openai", "gemini")),
+    "provider.groq.api_key":     (str,   None),
+    "provider.groq.model":       (str,   None),
+    "provider.openai.api_key":   (str,   None),
+    "provider.openai.model":     (str,   None),
+    "provider.gemini.api_key":   (str,   None),
+    "provider.gemini.model":     (str,   None),
+    "hotkey.mode":               (str,   lambda v: v in ("combo", "double_tap")),
+    "hotkey.combo_display":      (str,   None),
+    "hotkey.combo_keys":         (str,   None),
+    "hotkey.double_tap_key":     (str,   None),
+    "hotkey.double_tap_ms":      (int,   lambda v: 100 <= v <= 2000),
+    "widget.alpha":              (float, lambda v: 0.1 <= v <= 1.0),
+    "widget.x":                  ((int, type(None)), None),
+    "widget.y":                  ((int, type(None)), None),
+}
+
 DEFAULT_CONFIG = {
     "general": {
         "language": "es",
@@ -82,7 +103,17 @@ class ConfigManager:
             node = node[k]
         return node
 
+    def _validate(self, key_path: str, value) -> None:
+        if key_path not in _SCHEMA:
+            return
+        expected_type, validator = _SCHEMA[key_path]
+        if not isinstance(value, expected_type):
+            raise ValueError(f"Invalid value {value!r} for config key {key_path!r}")
+        if validator is not None and not validator(value):
+            raise ValueError(f"Invalid value {value!r} for config key {key_path!r}")
+
     def set(self, key_path: str, value) -> None:
+        self._validate(key_path, value)
         keys = key_path.split(".")
         node = self._config
         for k in keys[:-1]:
@@ -96,6 +127,10 @@ class ConfigManager:
 
     def reload(self) -> None:
         self._config = self._load()
+
+
+_VALID_PROVIDERS = {"groq", "openai", "gemini"}
+_VALID_LANGUAGES = {"es", "en", "auto"}
 
 
 class HistoryManager:
@@ -123,6 +158,10 @@ class HistoryManager:
         return conn
 
     def add(self, text: str, provider: str, language: str, duration_ms: int = 0) -> None:
+        if provider not in _VALID_PROVIDERS:
+            raise ValueError(f"Invalid provider: {provider!r}")
+        if language not in _VALID_LANGUAGES and not (len(language) == 2 and language.isalpha()):
+            raise ValueError(f"Invalid language: {language!r}")
         with self._connect() as conn:
             conn.execute(
                 "INSERT INTO transcriptions (text, provider, language, audio_duration_ms) VALUES (?, ?, ?, ?)",

@@ -154,6 +154,55 @@ Replace `assets/icon.png` with your own 64×64 px RGBA PNG. If the file is missi
 
 ---
 
+## Deployment
+
+GliFlow uses GitHub Actions to build standalone executables for Windows, macOS, and Linux via PyInstaller. No Python installation is required to run the distributed binaries.
+
+### Automated builds
+
+Every push to a `v*` tag triggers the build pipeline:
+
+```bash
+# 1. Bump version in src/app.py
+# 2. Commit and tag
+git add src/app.py
+git commit -m "chore: bump version to v0.9.0"
+git tag v0.9.0
+git push origin main --tags
+```
+
+GitHub Actions will:
+1. Build three executables in parallel (Windows, macOS, Linux)
+2. Create a GitHub Release with auto-generated release notes
+3. Attach the binaries as release assets:
+   - `GliFlow-windows.exe`
+   - `GliFlow-macos.zip` (contains `GliFlow.app`)
+   - `GliFlow-linux`
+
+### Manual build trigger
+
+You can also trigger a build without a release from the GitHub Actions tab → **Build** → **Run workflow**.
+
+### Build locally
+
+```bash
+pip install pyinstaller==6.11.1
+pyinstaller gliflow.spec --clean --noconfirm
+# Output: dist/GliFlow  (or dist/GliFlow.exe on Windows)
+```
+
+### Platform notes
+
+| Platform | Extra requirements |
+|----------|--------------------|
+| **Windows** | None — PortAudio DLL is bundled by `sounddevice` |
+| **macOS** | `brew install portaudio` before building |
+| **Linux** | `python3-tk`, `libayatana-appindicator3-dev`, `xvfb` (installed automatically in CI) |
+
+> macOS builds produce a `.app` bundle with microphone permission description in `Info.plist` (`NSMicrophoneUsageDescription`). On first launch, macOS will prompt for microphone access.
+
+---
+
 ## Requirements
 
 - Python 3.11+

@@ -17,3 +17,9 @@ def insert_text(text: str) -> None:
     except Exception:
         # Paste failed — text still in clipboard for manual paste
         pass
+    time.sleep(0.3)  # ensure paste completes before clearing
+    try:
+        pyperclip.copy("")
+    except Exception:
+        # Clipboard clear failure must not break the insertion flow
+        pass

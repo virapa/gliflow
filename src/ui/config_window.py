@@ -1,6 +1,7 @@
 import os
 import sys
 import tkinter as tk
+from pathlib import Path
 from tkinter import ttk, messagebox
 
 # ── KeyRecorder widget ────────────────────────────────────────────────────────
@@ -351,17 +352,76 @@ class ConfigWindow:
                     row=row, column=1, sticky="w", padx=8)
                 tk.Label(f, text=badge_text, fg=badge_fg, bg=badge_bg,
                          font=("Segoe UI", 8), relief="flat", padx=4).grid(row=row, column=2, sticky="w")
+            elif source == "keyring":
+                # Security fix M-001: never retrieve the actual key from keyring into memory.
+                # Show a read-only placeholder and offer Delete / Replace flows only.
+                placeholder_var = tk.StringVar(value="[stored in keyring]")
+                tk.Entry(f, textvariable=placeholder_var, width=24, state="disabled",
+                         disabledforeground=badge_fg, disabledbackground=badge_bg).grid(
+                    row=row, column=1, sticky="w", padx=8)
+                source_lbl = tk.Label(f, text=badge_text, fg=badge_fg, bg=badge_bg,
+                                      font=("Segoe UI", 8), relief="flat", padx=4)
+                source_lbl.grid(row=row, column=2, sticky="w")
+                row += 1
+
+                # "Delete from keyring" button
+                def _make_delete(p, slbl):
+                    def delete_from_keyring():
+                        try:
+                            save_api_key_to_keyring(p, "")
+                            bt, bf, bb = _source_style["none"]
+                            slbl.config(text=bt, fg=bf, bg=bb)
+                            messagebox.showinfo(
+                                "GliFlow",
+                                "Key removed from OS keyring.",
+                                parent=self._win,
+                            )
+                        except Exception as e:
+                            messagebox.showerror("Keyring error", str(e), parent=self._win)
+                    return delete_from_keyring
+
+                tk.Button(f, text="Delete from keyring", font=("Segoe UI", 8),
+                          command=_make_delete(prov, source_lbl)).grid(
+                    row=row, column=1, sticky="w", padx=8, pady=(0, 2))
+                row += 1
+
+                # Separate entry (starts empty) + "Save new key to keyring" button
+                tk.Label(f, text="New key:").grid(row=row, column=0, sticky="w", pady=2)
+                new_key_var = tk.StringVar(value="")
+                tk.Entry(f, textvariable=new_key_var, show="•", width=24).grid(
+                    row=row, column=1, sticky="w", padx=8)
+                row += 1
+
+                def _make_save_new(p, nkv, slbl):
+                    def save_new_to_keyring():
+                        val = nkv.get().strip()
+                        if not val:
+                            messagebox.showwarning(
+                                "GliFlow", "Enter a new key first.", parent=self._win
+                            )
+                            return
+                        try:
+                            save_api_key_to_keyring(p, val)
+                            cfg.set(f"provider.{p}.api_key", "")
+                            nkv.set("")
+                            bt, bf, bb = _source_style["keyring"]
+                            slbl.config(text=bt, fg=bf, bg=bb)
+                            messagebox.showinfo(
+                                "GliFlow", "New key saved to OS keyring.", parent=self._win
+                            )
+                        except Exception as e:
+                            messagebox.showerror("Keyring error", str(e), parent=self._win)
+                    return save_new_to_keyring
+
+                tk.Button(f, text="Save new key to keyring", font=("Segoe UI", 8),
+                          command=_make_save_new(prov, new_key_var, source_lbl)).grid(
+                    row=row, column=1, sticky="w", padx=8, pady=(0, 2))
+                # Do NOT register new_key_var in self._vars — keyring keys must not be
+                # written to config.json.
+
             else:
-                # Show current keyring value masked, or empty
-                current_key = ""
-                if source == "keyring":
-                    try:
-                        import keyring as _kr
-                        current_key = _kr.get_password("gliflow", prov) or ""
-                    except Exception:
-                        pass
-                elif source == "config":
-                    current_key = cfg.get(f"provider.{prov}.api_key", "")
+                # source == "config" or "none": show masked editable entry
+                current_key = cfg.get(f"provider.{prov}.api_key", "") if source == "config" else ""
 
                 key_var = tk.StringVar(value=current_key)
                 entry = tk.Entry(f, textvariable=key_var, show="•", width=24)
@@ -370,6 +430,7 @@ class ConfigWindow:
                 source_lbl = tk.Label(f, text=badge_text, fg=badge_fg, bg=badge_bg,
                                       font=("Segoe UI", 8), relief="flat", padx=4)
                 source_lbl.grid(row=row, column=2, sticky="w")
+                row += 1
 
                 def _make_save(p, kv, slbl):
                     def save_to_keyring():
@@ -394,12 +455,12 @@ class ConfigWindow:
 
                 tk.Button(f, text="Save to keyring", font=("Segoe UI", 8),
                           command=_make_save(prov, key_var, source_lbl)).grid(
-                    row=row + 1, column=1, sticky="w", padx=8, pady=(0, 2))
+                    row=row, column=1, sticky="w", padx=8, pady=(0, 2))
 
-                # Still allow saving to config.json via _vars when keyring not chosen
+                # Allow saving to config.json via _vars
                 self._vars[f"provider.{prov}.api_key"] = key_var
 
-            row += 2 if source != "env" else 1
+            row += 1 if source in ("env", "keyring") else 1
 
             # Model
             tk.Label(f, text="Model:").grid(row=row, column=0, sticky="w", pady=2)
@@ -531,7 +592,7 @@ class ConfigWindow:
         try:
             from ..app import VERSION
         except Exception:
-            VERSION = "0.1.0"
+            VERSION = "0.9.0"
         f = tk.Frame(parent, bg="white", padx=20, pady=20)
 
         try:
@@ -575,7 +636,14 @@ class ConfigWindow:
             self._app.widget.update_alpha(alpha.get())
 
         # Auto-start registry
-        self._apply_auto_start(self._vars.get("general.auto_start", tk.BooleanVar()).get())
+        auto_start_enabled = self._vars.get("general.auto_start", tk.BooleanVar()).get()
+        auto_start_ok = self._apply_auto_start(auto_start_enabled)
+        if not auto_start_ok and auto_start_enabled:
+            messagebox.showwarning(
+                "GliFlow",
+                "Auto-start could not be registered. Check application permissions.",
+                parent=self._win,
+            )
 
         # Rebuild tray menu in case history setting changed
         self._app.tray.rebuild_menu()
@@ -613,15 +681,20 @@ class ConfigWindow:
         except Exception as e:
             messagebox.showerror("Error de conexión", str(e), parent=self._win)
 
-    def _apply_auto_start(self, enabled: bool) -> None:
+    def _apply_auto_start(self, enabled: bool) -> bool:
         if sys.platform != "win32":
-            return
+            return True
         try:
             import winreg
             key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
             app_name = "GliFlow"
             import sys as _sys
-            exe = _sys.executable
+            exe_path = Path(_sys.executable).resolve()
+            if not exe_path.is_absolute():
+                raise ValueError(f"Executable path is not absolute: {exe_path}")
+            if not exe_path.exists():
+                raise FileNotFoundError(f"Executable not found: {exe_path}")
+            exe = str(exe_path)
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
                 if enabled:
                     winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, f'"{exe}" -m src.main')
@@ -630,8 +703,9 @@ class ConfigWindow:
                         winreg.DeleteValue(key, app_name)
                     except FileNotFoundError:
                         pass
+            return True
         except Exception:
-            pass
+            return False
 
 
 class HistoryWindow:
