@@ -1,17 +1,44 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
-from pathlib import Path
+from PyInstaller.utils.hooks import collect_all, collect_data_files
 
 block_cipher = None
+
+# Collect all binaries + data for packages that need it
+numpy_datas,    numpy_binaries,    numpy_hidden    = collect_all('numpy')
+sounddevice_datas, sounddevice_binaries, sounddevice_hidden = collect_all('sounddevice')
+pynput_datas,   pynput_binaries,   pynput_hidden   = collect_all('pynput')
+pystray_datas,  pystray_binaries,  pystray_hidden  = collect_all('pystray')
+keyring_datas,  keyring_binaries,  keyring_hidden  = collect_all('keyring')
 
 a = Analysis(
     ['run.py'],
     pathex=['.'],
-    binaries=[],
+    binaries=[
+        *numpy_binaries,
+        *sounddevice_binaries,
+        *pynput_binaries,
+        *pystray_binaries,
+        *keyring_binaries,
+    ],
     datas=[
         ('assets/icon.png', 'assets'),
+        *numpy_datas,
+        *sounddevice_datas,
+        *pynput_datas,
+        *pystray_datas,
+        *keyring_datas,
     ],
     hiddenimports=[
+        *numpy_hidden,
+        *sounddevice_hidden,
+        *pynput_hidden,
+        *pystray_hidden,
+        *keyring_hidden,
+        'numpy.core._multiarray_umath',
+        'numpy.core._multiarray_tests',
+        'numpy.core.multiarray',
+        'numpy.core.numeric',
         'pynput.keyboard._win32',
         'pynput.keyboard._darwin',
         'pynput.keyboard._xorg',
@@ -53,12 +80,11 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,               # no terminal window
+    console=False,
     disable_windowed_traceback=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # Windows icon
     icon='assets/icon.png' if sys.platform == 'win32' else None,
 )
 
@@ -72,6 +98,6 @@ if sys.platform == 'darwin':
         info_plist={
             'NSMicrophoneUsageDescription': 'GliFlow needs microphone access for speech-to-text.',
             'NSAppleEventsUsageDescription': 'GliFlow uses Apple Events for text insertion.',
-            'LSUIElement': True,   # hide from Dock (tray-only app)
+            'LSUIElement': True,
         },
     )
