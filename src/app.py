@@ -12,7 +12,7 @@ from .ui.config_window import ConfigWindow, HistoryWindow
 from .hotkey.listener import HotkeyListener
 from .output.inserter import insert_text
 
-VERSION = "0.9.2"
+VERSION = "0.9.3"
 
 
 class GliFlowApp:

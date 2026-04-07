@@ -4,6 +4,10 @@ Windows desktop Speech-to-Text app. Trigger recording with a global hotkey, tran
 
 ---
 
+> **Windows users:** The binary is not code-signed, so Windows SmartScreen will show a warning: *"Windows Defender SmartScreen prevented an unrecognized app from starting"* with **Unknown publisher**. This is expected. To run it: click **More info → Run anyway**. You only need to do this once.
+
+---
+
 ## Quick Start
 
 ```bash

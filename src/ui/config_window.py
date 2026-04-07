@@ -630,7 +630,7 @@ class ConfigWindow:
         try:
             from ..app import VERSION
         except Exception:
-            VERSION = "0.9.2"
+            VERSION = "0.9.3"
         f = tk.Frame(parent, bg="white", padx=20, pady=20)
 
         try:
