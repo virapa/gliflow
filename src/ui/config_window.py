@@ -296,7 +296,32 @@ class ConfigWindow:
 
     def _tab_provider(self, parent) -> tk.Frame:
         cfg = self._app.config_manager
-        f = tk.Frame(parent, padx=15, pady=15)
+
+        # Scrollable container
+        outer = tk.Frame(parent)
+        canvas = tk.Canvas(outer, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        f = tk.Frame(canvas, padx=15, pady=15)
+        canvas_window = canvas.create_window((0, 0), window=f, anchor="nw")
+
+        def _on_frame_configure(e):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_canvas_configure(e):
+            canvas.itemconfig(canvas_window, width=e.width)
+
+        f.bind("<Configure>", _on_frame_configure)
+        canvas.bind("<Configure>", _on_canvas_configure)
+
+        def _on_mousewheel(e):
+            canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
 
         _models = {
             "groq": [
@@ -474,7 +499,7 @@ class ConfigWindow:
         tk.Button(f, text="Test connection", command=self._test_connection).grid(
             row=row, column=0, columnspan=3, pady=(12, 0))
 
-        return f
+        return outer
 
     def _tab_hotkey(self, parent) -> tk.Frame:
         cfg = self._app.config_manager
@@ -592,7 +617,7 @@ class ConfigWindow:
         try:
             from ..app import VERSION
         except Exception:
-            VERSION = "0.9.0"
+            VERSION = "0.9.1"
         f = tk.Frame(parent, bg="white", padx=20, pady=20)
 
         try:
