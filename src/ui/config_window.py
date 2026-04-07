@@ -358,11 +358,24 @@ class ConfigWindow:
             "none":    ("○ no key",   "#c55", "#fff0f0"),
         }
 
+        _api_links = {
+            "groq":   "https://console.groq.com/keys",
+            "openai": "https://platform.openai.com/api-keys",
+            "gemini": "https://aistudio.google.com/api-keys",
+        }
+
         row = 1
         for prov, label in [("groq", "Groq"), ("openai", "OpenAI"), ("gemini", "Gemini")]:
             # Section header
-            tk.Label(f, text=label, font=("Segoe UI", 9, "bold"), fg="#444").grid(
-                row=row, column=0, columnspan=3, sticky="w", pady=(8, 0))
+            header_frame = tk.Frame(f)
+            header_frame.grid(row=row, column=0, columnspan=3, sticky="w", pady=(8, 0))
+            tk.Label(header_frame, text=label, font=("Segoe UI", 9, "bold"), fg="#444").pack(side="left")
+            if prov in _api_links:
+                import webbrowser
+                link = tk.Label(header_frame, text="Get API key →", fg="#47a",
+                                font=("Segoe UI", 8), cursor="hand2")
+                link.pack(side="left", padx=(8, 0))
+                link.bind("<Button-1>", lambda e, url=_api_links[prov]: webbrowser.open(url))
             row += 1
 
             # API Key
@@ -617,7 +630,7 @@ class ConfigWindow:
         try:
             from ..app import VERSION
         except Exception:
-            VERSION = "0.9.1"
+            VERSION = "0.9.2"
         f = tk.Frame(parent, bg="white", padx=20, pady=20)
 
         try:
